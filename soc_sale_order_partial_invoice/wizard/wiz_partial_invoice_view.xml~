@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+  <data>
+    <!-- wizard facturation depuis SO line -->
+
+<record id="jb_sale_order_line_make_invoice" model="ir.ui.view">
+  <field name="name">jb_sale_order_line_make_invoice</field>
+  <field name="model">sale.order.line.make.invoice</field>
+  <field name="inherit_id" ref="sale.view_sale_order_line_make_invoice"/>
+  <field name="arch" type="xml">
+    <xpath expr="//form/footer" position="before">
+      <field name="line_ids" nolabel="1">
+        <tree string="Lignes à facturer" create="false" editable="bottom">
+             <field name="sale_order_line_id" invisible="1"/>
+             <field name="name" string="Produit" readonly="1"/>
+             <field name="order_qty" string="Qté commandée" readonly="1"/>
+             <field name="qty_invoiced" string="Qté facturée" readonly="1"/>
+             <field name="amount_ordered" string="Montant commandé" readonly="1"/>
+             <field name="qty_delivered" invisible="1"/>
+             <field name="quantity" string="Qté à facturer"/>
+             <field name="percent2invoice" string="pcent à facturer"/>
+        </tree>
+      </field>
+    </xpath>
+  </field>
+</record>
+    
+
+<!-- Reprise du form du wizard pour facturation depuis les commandes -->
+    <record id="view_sale_order_invoice_partially_form" model="ir.ui.view">
+      <field name="name">sale.order.line.invoice.partially.form</field>
+      <field name="model">sale.order.line.invoice.partially</field>
+      <field name="arch" type="xml">
+        <form version="7.0" string="Invoice Sale Order Lines">
+        <sheet>
+          <separator string="Invoice lines"/>
+          <group>
+            <field name="line_ids" nolabel="1">
+              <tree version="7.0" string="Lines" create="false" editable="bottom">
+                <field name="sale_order_line_id" invisible="1"/>
+                <field name="name"/>
+                <field name="order_qty"/>
+                <field name="qty_invoiced"/>
+                <field name="qty_delivered"/>
+                <field name="quantity"/>
+              </tree>
+            </field>
+          </group>
+        </sheet>
+        <footer>
+          <button name="create_invoice" type="object" string="Create Invoice" class="oe_highlight"/>
+            or
+            <button string="Cancel" class="oe_link" special="cancel" />
+        </footer>
+        </form>
+      </field>
+    </record>
+
+  </data>
+</openerp>

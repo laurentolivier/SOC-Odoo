@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+  <data>
+    <!-- wizard facturation depuis SO line -->
+
+<record id="jb_sale_order_line_make_invoice" model="ir.ui.view">
+  <field name="name">jb_sale_order_line_make_invoice</field>
+  <field name="model">sale.order.line.make.invoice</field>
+  <field name="inherit_id" ref="sale.view_sale_order_line_make_invoice"/>
+  <field name="arch" type="xml">
+    <xpath expr="//form/footer" position="before">
+      <field name="line_ids" nolabel="1">
+        <tree string="Lignes à facturer" create="false" editable="bottom">
+             <field name="sale_order_line_id" invisible="1"/>
+             <field name="name" string="Description" readonly="1"/>
+             <field name="amount_ordered"  readonly="1"/>
+             <field name="amount_invoiced" readonly="1"/>
+             <field name="percent2invoice"  on_change="onchange_percent(percent2invoice, amount_invoiced, sale_order_line_id)"/>
+             <field name="amount_final" />
+        </tree>
+      </field>
+    </xpath>
+  </field>
+</record>
+    
+
+
+  </data>
+</openerp>

@@ -1,0 +1,289 @@
+# -*- coding: utf-8 -*-
+##############################################################################
+#
+#    Author: Alexandre Fayolle
+#    Copyright 2013 Camptocamp SA
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU Affero General Public License as
+#    published by the Free Software Foundation, either version 3 of the
+#    License, or (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU Affero General Public License for more details.
+#
+#    You should have received a copy of the GNU Affero General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+##############################################################################
+
+import logging
+_logger = logging.getLogger(__name__)
+
+from openerp.osv import orm, fields, osv
+from openerp import netsvc
+
+
+##Inherit and improve original sale invoice by SO line wizard
+
+class jb__order_line_invoice_partially_line(orm.TransientModel):
+    _name = "jb.order.line.invoice.partially.line"
+    _columns = {
+        'wizard_id': fields.many2one('sale.order.line.make.invoice',
+                                     string='Wizard'),
+        'sale_order_line_id': fields.many2one('sale.order.line',
+                                              string='sale.order.line'),
+        'name': fields.related('sale_order_line_id', 'name',
+                               type='char', string="Line"),
+        'order_qty': fields.related('sale_order_line_id', 'product_uom_qty',
+                                    type='float', string="Sold"),
+        'qty_invoiced': fields.related('sale_order_line_id', 'qty_invoiced',
+                                       type='float', string="Invoiced"),
+        'qty_delivered': fields.related('sale_order_line_id', 'qty_delivered',
+                                        type='float', string="Shipped"),
+        'quantity': fields.float('To invoice'),
+        'amount_ordered': fields.related('sale_order_line_id', 'price_subtotal',
+                                        type='float', string="Montant commandé"),
+        'percent2invoice': fields.float('% à facturer'),
+        }
+
+
+class sale_order_line_make_invoice(osv.osv_memory):
+    _inherit = "sale.order.line.make.invoice"
+    _description = "Sale OrderLine Make_invoice improved"
+
+
+    _columns = {
+        'name': fields.char('Name'),
+        'line_ids': fields.one2many('jb.order.line.invoice.partially.line',
+                                    'wizard_id', string="Lines"),
+        }    
+
+
+    def default_get(self, cr, uid, fields, context=None):
+        ''' populate the wizard with so line'''
+        data = super( sale_order_line_make_invoice, self).default_get(cr, uid, fields, context=context)
+        line_values = []
+        sales_order_line_obj = self.pool.get('sale.order.line')
+        sales_order_obj = self.pool.get('sale.order')
+        for so_line in sales_order_line_obj.browse(cr, uid, context.get('active_ids', []), context=context):
+            if so_line.state in ('confirmed', 'done') and not so_line.invoiced:
+                val = {'sale_order_line_id': so_line.id,}
+                val['name'] = so_line.name
+                val['qty_invoiced'] = so_line.qty_invoiced
+                val['order_qty'] = so_line.product_uom_qty
+                val['amount_ordered'] = so_line.price_subtotal
+                val['amount_ordered'] = so_line.price_subtotal
+                if so_line.product_id and so_line.product_id.type == 'product':
+                    val['quantity'] = so_line.qty_delivered - so_line.qty_invoiced
+                else:
+                    # service or consumable
+                    val['quantity'] = so_line.product_uom_qty - so_line.qty_invoiced
+                line_values.append((0, 0, val))
+        data['line_ids']=line_values
+        return data    
+        
+    def make_invoices(self, cr, uid, ids, context=None):
+        """
+        To make invoices.
+
+             @param self: The object pointer.
+             @param cr: A database cursor
+             @param uid: ID of the user currently logged in
+             @param ids: the ID or list of IDs
+             @param context: A standard dictionary
+
+             @return: A dictionary which of fields with values.
+
+        """
+        if context is None:
+            context = {}
+        ctx = context.copy()
+        ctx['_partial_invoice'] = {}
+        res = False
+#        invoices = {}
+
+        sales_order_line_obj = self.pool.get('sale.order.line')
+        sales_order_obj = self.pool.get('sale.order')
+        wf_service = netsvc.LocalService('workflow')
+        partner_ids = []
+        origin = []
+        invoice_line_ids = []
+        orders = []
+        vals = {}
+        order_lines = {}
+        wiz=self.browse(cr,uid,ids,context)[0]
+
+        for line_part  in wiz.line_ids:
+            line = line_part.sale_order_line_id
+            partner = line.order_id.partner_id           
+            if not partner_ids:
+                partner_ids.append(partner.id)
+                vals['partner_id'] = line.order_id.partner_invoice_id.id
+                vals['account_id'] = partner.property_account_receivable.id
+                if partner.property_payment_term.id:
+                    vals['pay_term'] = partner.property_payment_term.id
+                else:
+                    vals['pay_term'] = False
+                vals['company_id'] = line.order_id.company_id and line.order_id.company_id.id or False
+                vals['reference'] =  "P%dSO%d" % (line.order_id.partner_id.id, line.order_id.id)
+                vals['currency_id'] = line.order_id.pricelist_id.currency_id.id
+                vals['fiscal_position'] = line.order_id.fiscal_position.id or line.order_id.partner_id.property_account_position.id
+                vals['user_id'] = line.order_id.user_id and line.order_id.user_id.id or False
+            else:
+                if partner.id not in partner_ids:
+                    raise osv.except_osv(_('Attention!'), _('Le client à facturer doit être le même dans toutes les lignes'))
+
+            if line_part.percent2invoice == 0:
+                continue
+            sale_order = line_part.sale_order_line_id.order_id
+            if sale_order.id not in order_lines:
+                order_lines[sale_order.id] = []
+            order_lines[sale_order.id].append(line_part.sale_order_line_id.id)
+            ctx['_partial_invoice'][line_part.sale_order_line_id.id] = line_part.percent2invoice
+                    
+            if (not line.invoiced) and (line.state not in ('draft', 'cancel')):
+                if line.order_id not in orders:
+                    orders.append(line.order_id)
+                    origin.append(line.order_id.name)
+                line_id = sales_order_line_obj.invoice_line_create(cr, uid, [line.id],context=ctx)
+                for lid in line_id:
+                    invoice_line_ids.append(lid)
+
+        vals['origin'] = '-'.join(origin)
+        vals['type'] = 'out_invoice'
+        vals['invoice_line'] = [(6, 0, invoice_line_ids)]
+        vals['date_invoice'] = fields.date.today()
+
+        inv_id = self.pool.get('account.invoice').create(cr, uid, vals)
+        _logger.info('created invoice %d', inv_id)
+        for order in orders:
+#            res = make_invoice(order, il)
+            cr.execute('INSERT INTO sale_order_invoice_rel \
+                    (order_id,invoice_id) values (%s,%s)', (order.id, inv_id))
+            flag = True
+            data_sale = sales_order_obj.browse(cr, uid, order.id, context=context)
+            for line in data_sale.order_line:
+                if not line.invoiced:
+                    flag = False
+                    break
+            if flag:
+                line.order_id.write({'state': 'progress'})
+                wf_service.trg_validate(uid, 'sale.order', order.id, 'all_lines', cr)
+
+        if not invoice_line_ids:
+            raise osv.except_osv(_('Warning!'), _('Invoice cannot be created for this Sales Order Line due to one of the following reasons:\n1.The state of this sales order line is either "draft" or "cancel"!\n2.The Sales Order Line is Invoiced!'))
+        if context.get('open_invoices', False):
+            return self.open_invoices(cr, uid, ids, inv_id, context=context)
+        return {'type': 'ir.actions.act_window_close'}
+
+
+class sale_advance_payment_inv(orm.TransientModel):
+    _inherit = "sale.advance.payment.inv"
+
+    def create_invoices(self, cr, uid, ids, context=None):
+        """override standard behavior if payment method is set to 'lines':
+        """
+        res = super(sale_advance_payment_inv, self).create_invoices(cr, uid, ids, context)
+        wizard = self.browse(cr, uid, ids[0], context)
+        if wizard.advance_payment_method != 'lines':
+            return res
+        sale_ids = context.get('active_ids', [])
+        if not sale_ids:
+            return res
+        wizard_obj = self.pool['sale.order.line.invoice.partially']
+        order_line_obj = self.pool['sale.order.line']
+        so_domain = [('order_id', 'in', sale_ids),]
+        so_line_ids = order_line_obj.search(cr, uid, so_domain, context=context)
+        line_values = []
+        for so_line in order_line_obj.browse(cr, uid, so_line_ids, context=context):
+            if so_line.state in ('confirmed', 'done') and not so_line.invoiced:
+                val = {'sale_order_line_id': so_line.id,}
+                if so_line.product_id and so_line.product_id.type == 'product':
+                    val['quantity'] = so_line.qty_delivered - so_line.qty_invoiced
+                else:
+                    # service or consumable
+                    val['quantity'] = so_line.product_uom_qty - so_line.qty_invoiced
+                line_values.append((0, 0, val))
+        val = {'line_ids': line_values,}
+        wizard_id = wizard_obj.create(cr, uid, val, context=context)
+        wiz = wizard_obj.browse(cr, uid, wizard_id, context=context)
+        print wiz.line_ids
+        res = {'view_type': 'form',
+               'view_mode': 'form',
+               'res_model': 'sale.order.line.invoice.partially',
+               'res_id': wizard_id,
+               'type': 'ir.actions.act_window',
+               'target': 'new',
+               'context': context,
+               }
+        return res
+
+#### Original C2C code
+class sale_order_line_invoice_partially_line(orm.TransientModel):
+    _name = "sale.order.line.invoice.partially.line"
+    _columns = {
+        'wizard_id': fields.many2one('sale.order.line.invoice.partially',
+                                     string='Wizard'),
+        'sale_order_line_id': fields.many2one('sale.order.line',
+                                              string='sale.order.line'),
+        'name': fields.related('sale_order_line_id', 'name',
+                               type='char', string="Line"),
+        'order_qty': fields.related('sale_order_line_id', 'product_uom_qty',
+                                    type='float', string="Sold"),
+        'qty_invoiced': fields.related('sale_order_line_id', 'qty_invoiced',
+                                       type='float', string="Invoiced"),
+        'qty_delivered': fields.related('sale_order_line_id', 'qty_delivered',
+                                        type='float', string="Shipped"),
+        'quantity': fields.float('To invoice'),
+        }
+
+
+class sale_order_line_invoice_partially(orm.TransientModel):
+    _name = "sale.order.line.invoice.partially"
+    _columns = {
+        'name': fields.char('Name'),
+        'line_ids': fields.one2many('sale.order.line.invoice.partially.line',
+                                    'wizard_id', string="Lines"),
+        }
+
+    def create_invoice(self, cr, uid, ids, context=None):
+        wf_service = netsvc.LocalService('workflow')
+        if context is None:
+            context = {}
+        ctx = context.copy()
+        ctx['_partial_invoice'] = {}
+        so_line_obj = self.pool['sale.order.line']
+        so_obj = self.pool['sale.order']
+        order_lines = {}
+        for wiz in self.browse(cr, uid, ids, context=context):
+            for line in wiz.line_ids:
+                if line.quantity == 0:
+                    continue
+                sale_order = line.sale_order_line_id.order_id
+                if sale_order.id not in order_lines:
+                    order_lines[sale_order.id] = []
+                order_lines[sale_order.id].append(line.sale_order_line_id.id)
+                ctx['_partial_invoice'][line.sale_order_line_id.id] = line.quantity
+        for order_id in order_lines:
+            line_ids = order_lines[order_id]
+            invoice_line_ids = so_line_obj.invoice_line_create(cr,
+                                                               uid,
+                                                               line_ids,
+                                                               context=ctx)
+            order = so_obj.browse(cr, uid, order_id, context=context)
+            invoice_id = so_obj._make_invoice(cr, uid,
+                                              order,
+                                              invoice_line_ids,
+                                              context=ctx)
+            _logger.info('created invoice %d', invoice_id)
+            # the following is copied from many places around
+            # (actually sale_line_invoice.py)
+            cr.execute('INSERT INTO sale_order_invoice_rel (order_id, '
+                       '                                    invoice_id) '
+                       'VALUES (%s,%s)', (order_id, invoice_id))
+            if all(line.invoiced for line in order.order_line):
+                wf_service.trg_validate(uid, 'sale.order', order.id, 'manual_invoice', cr)
+        return {'type': 'ir.actions.act_window_close'}

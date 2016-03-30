@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<openerp>
+<data>
+
+    <!-- <record model="ir.ui.view" id="jb_product_2nd_form"> -->
+    <!--     <field name="name">jb.product.2nd.form</field> -->
+    <!--     <field name="model">product.product</field> -->
+    <!--     <field name="inherit_id" ref="stock.view_product_standard_price_form"/> -->
+    <!--     <field name="arch" type="xml"> -->
+    <!--          <xpath expr="//label[@string='Cost Price']" position="before"> -->
+    <!--             <field name="uom_po_id2"/> -->
+    <!--          </xpath> -->
+    <!--          <xpath expr="//group[@name='procurement_uom']" position="attributes"> -->
+    <!--             <attribute name="invisible">1</attribute> -->
+    <!--          </xpath> -->
+    <!--     </field> -->
+    <!-- </record> -->
+
+
+
+</data>
+</openerp>

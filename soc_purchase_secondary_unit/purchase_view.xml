@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<openerp>
+  <data>
+
+<!--
+Vues Purchase requisition
+-->
+        <!-- <record id="soc_purchase_2nd_requisition_form" model="ir.ui.view"> -->
+        <!--     <field name="name">jb.purchase.2nd.requisition.form</field> -->
+        <!--     <field name="model">purchase.requisition</field> -->
+        <!--     <field name="inherit_id" ref="purchase_requisition.view_purchase_requisition_form"/> -->
+        <!--     <field name="arch" type="xml"> -->
+        <!--          <xpath expr="//sheet/notebook/page/field[@name='line_ids']" position="replace"> -->
+        <!--            <field name="line_ids"> -->
+        <!--              <tree string="Products" editable="top"> -->
+        <!--                <field name="product_id" on_change="onchange_product_id(product_id,product_uom_id)"/> -->
+        <!--                <field name="qty_uos2"  /> -->
+        <!--                <field name="uos_id2" /> -->
+        <!--                <field name="product_qty"/> -->
+        <!--                <field name="product_uom_id" groups="product.group_uom"/> -->
+        <!--              </tree> -->
+        <!--              <form string="Products" version="7.0"> -->
+        <!--                <group> -->
+        <!--                  <field name="product_id" /> -->
+        <!--                  <field name="qty_uos2"  /> -->
+        <!--                  <field name="uos_id2" /> -->
+        <!--                  <field name="product_qty"/> -->
+        <!--                  <field name="product_uom_id" /> -->
+        <!--                  <field name="company_id" groups="base.group_multi_company" widget="selection"/> -->
+        <!--                </group> -->
+        <!--              </form> -->
+        <!--            </field> -->
+
+        <!--          </xpath> -->
+             
+        <!--     </field> -->
+        <!-- </record> -->
+
+
+    
+<!--
+Vues Purchase orders
+-->
+        <record id="soc_purchase_2nd_order_form" model="ir.ui.view">
+            <field name="name">jb.purchase.2nd.order.form</field>
+            <field name="model">purchase.order</field>
+            <field name="inherit_id" ref="purchase.purchase_order_form"/>
+            <field name="arch" type="xml">
+                 <xpath expr="//sheet/notebook/page/field/tree/field[@name='product_qty']" position="before">
+                   <field name="qty_uos2"  />
+                   <field name="uos_id2" />
+                 </xpath>
+
+                 <xpath expr="//header/button[@name='print_quotation']" position="attributes">
+                   <attribute name ="invisible">1</attribute>
+                 </xpath>
+
+                 <xpath expr="//header/button[@name='wkf_send_rfq']" position="attributes">
+                   <attribute name ="invisible">1</attribute>
+                 </xpath>
+             
+            </field>
+        </record>
+
+
+  </data>
+</openerp>
