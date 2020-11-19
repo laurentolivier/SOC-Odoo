@@ -1,7 +1,7 @@
 # Odoo-OpenErp
 Here are some Odoo / OpenErp modules.
 Some of them are original, some are inspired by other modules (see __openerp__.py for credits)
-
+-
 - soc_purchase secondary_unit : add a new unit in purchase order line. This can be usefull when you purchase with a unit different from your stock unit AND that thoses units are not from the same category (ex : purchasing in kg but stocking in units). The module alternates the units in the different object  during the worflow (SO=> Picking=> Invoice)
 
 
